@@ -81,7 +81,7 @@ function cleanEntry(entry: Object): Object {
   return entry
 }
 
-function batchify<T>(input: Array<T>, batchSize: number = 100): Array<Array<T>> {
+function batchify<T>(input: Array<T>, batchSize: number = 50): Array<Array<T>> {
   const output = []
   let currentBatch = []
   for (let i = 0; i < input.length; i++) {
@@ -97,30 +97,30 @@ function batchify<T>(input: Array<T>, batchSize: number = 100): Array<Array<T>> 
   return output
 }
 
-function fetchNames(names: Array<string>) : Promise<Array<IndexEntry>> {
-  let foundCount = 0
+function lookupProfileWithTimeout(name: string, timeoutSecs: number): Promise<Object> {
+  return Promise.race([
+    new Promise((resolve, reject) =>
+                setTimeout(() => reject(new Error('lookupProfile timed out')),
+                           timeoutSecs*1000)),
+    lookupProfile(name)])
+}
+
+function fetchNames(names: Array<string>) : Promise<Array<?IndexEntry>> {
   return Promise.all(names.map(
     name =>
-      lookupProfile(name)
-      .then(profile => {
-        foundCount = foundCount + 1
-        if (foundCount % 250 === 0) {
-          logger.info(`Fetched ${foundCount}...`)
-        }
-        return { key: name,
-                 value: cleanEntry(Object.assign({}, profile)) }
-      })
+      lookupProfileWithTimeout(name, 30)
+      .then(profile =>
+            ({ key: name,
+               value: cleanEntry(Object.assign({}, profile)) }))
       .catch((err) => {
-        logger.error(`Error looking up profile for ${name}`)
+        logger.debug(`Failed looking up profile for ${name}`)
         logger.debug(err)
         return null
       })))
-    // filter out the error results (nulls)
-    .then(results => results.filter(entry => entry !== null))
 }
 
 export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promise<void> {
-  let profileEntries
+  const profileEntries = []
   let allNames
   return Promise.all([getAllNames(), getAllSubdomains()])
     .then(([allDomains, allSubdomains]) => {
@@ -130,12 +130,27 @@ export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promi
       allSubdomains.forEach( x => allNames.push(x) )
       return allNames
     })
-    .then(names => fetchNames(allNames))
-    .then(results => {
-      profileEntries = results.map( entry => ({ profile: entry.value,
-                                                fqu: entry.key }) )
+    .then(names => batchify(names, 50))
+    .then(batches => {
+      let promiseIterate = Promise.resolve([])
+      batches.forEach((batch, batchIx) => {
+        promiseIterate = promiseIterate
+          .then(results => {
+            results.forEach( result => {
+              if (result) {
+                profileEntries.push({ profile: result.value,
+                                      fqu: result.key })
+              }
+            } )
+            if (batchIx % 10 === 0) {
+              logger.info(`Fetched ${batchIx} batches of 50`)
+            }
+          })
+          .then(() => fetchNames(batch))
+      })
     })
     .then(() => {
+      logger.info('Finished batching. Writing files...')
       fs.writeFileSync(profilesFile, JSON.stringify(profileEntries, null, 2))
       fs.writeFileSync(namesFile, JSON.stringify(allNames, null, 2))
     })
@@ -155,7 +170,11 @@ export function processAllNames(namespaceCollection: Collection,
     })
     .then(names => fetchNames(allNames))
     .then(results => {
-      indexEntries = results
+      results.forEach( result => {
+        if (result) {
+          indexEntries.push(result)
+        }
+      } )
     })
     .then(() => Promise.all(indexEntries.map(entry => profileCollection.save(entry))))
     .then(() => Promise.all(indexEntries.map(
