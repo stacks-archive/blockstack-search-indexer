@@ -148,6 +148,7 @@ export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promi
           })
           .then(() => fetchNames(batch))
       })
+      return promiseIterate
     })
     .then(() => {
       logger.info('Finished batching. Writing files...')
