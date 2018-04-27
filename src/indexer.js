@@ -122,6 +122,7 @@ function fetchNames(names: Array<string>) : Promise<Array<?IndexEntry>> {
 export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promise<void> {
   const profileEntries = []
   let allNames
+  let errorCount = 0
   return Promise.all([getAllNames(), getAllSubdomains()])
     .then(([allDomains, allSubdomains]) => {
       const totalLength = allDomains.length + allSubdomains.length
@@ -140,6 +141,8 @@ export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promi
               if (result) {
                 profileEntries.push({ profile: result.value,
                                       fqu: result.key })
+              } else {
+                errorCount += 1
               }
             } )
             if (batchIx % 10 === 0) {
@@ -151,6 +154,7 @@ export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promi
       return promiseIterate
     })
     .then(() => {
+      logger.info(`Total errored lookups: ${errorCount}`)
       logger.info('Finished batching. Writing files...')
       fs.writeFileSync(profilesFile, JSON.stringify(profileEntries, null, 2))
       fs.writeFileSync(namesFile, JSON.stringify(allNames, null, 2))
