@@ -98,11 +98,18 @@ function batchify<T>(input: Array<T>, batchSize: number = 100): Array<Array<T>> 
 }
 
 function fetchNames(names: Array<string>) : Promise<Array<IndexEntry>> {
+  let foundCount = 0
   return Promise.all(names.map(
     name =>
       lookupProfile(name)
-      .then(profile => ({ key: name,
-                          value: cleanEntry(Object.assign({}, profile)) }))
+      .then(profile => {
+        foundCount = foundCount + 1
+        if (foundCount % 250 === 0) {
+          logger.info(`Fetched ${foundCount}...`)
+        }
+        return { key: name,
+                 value: cleanEntry(Object.assign({}, profile)) }
+      })
       .catch((err) => {
         logger.error(`Error looking up profile for ${name}`)
         logger.debug(err)
