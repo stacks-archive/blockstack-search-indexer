@@ -1,5 +1,5 @@
 {
-  "name": "blockstack-resolver",
+  "name": "blockstack-search-indexer",
   "version": "0.1.0",
   "description": "A profile resolver for Blockstack",
   "main": "lib/index.js",
@@ -23,6 +23,9 @@
     "nyc": "^11.4.1",
     "tape": "^4.6.3",
     "tape-istanbul": "^1.2.0"
+  },
+  "bin": {
+    "blockstack-search-indexer": "./lib/index.js"
   },
   "scripts": {
     "start": "npm run build && node lib/index.js",
