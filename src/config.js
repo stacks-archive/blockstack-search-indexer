@@ -29,12 +29,6 @@ export function getConfig() {
     const configFile = process.env.BSK_SEARCH_CONFIG
     Object.assign(config, JSON.parse(fs.readFileSync(configFile)))
   }
-  if (process.env.BSK_SUBDOMAIN_PAYMENT_KEY) {
-    config.paymentKey = process.env.BSK_SUBDOMAIN_PAYMENT_KEY
-  }
-  if (process.env.BSK_SUBDOMAIN_OWNER_KEY) {
-    config.ownerKey = process.env.BSK_SUBDOMAIN_OWNER_KEY
-  }
   if (process.env.BSK_SEARCH_API_URL) {
     config.blockstackAPIUrl = process.env.BSK_SEARCH_API_URL
   }
