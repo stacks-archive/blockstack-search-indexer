@@ -123,6 +123,14 @@ export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promi
   const profileEntries = []
   let allNames
   let errorCount = 0
+
+  try {
+    fs.accessSync(profilesFile, fs.constants.W_OK)
+    fs.accessSync(namesFile, fs.constants.W_OK)
+  } catch (err) {
+    throw new Error('no access to the needed files.')
+  }
+
   return Promise.all([getAllNames(), getAllSubdomains()])
     .then(([allDomains, allSubdomains]) => {
       const totalLength = allDomains.length + allSubdomains.length
