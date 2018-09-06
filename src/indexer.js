@@ -3,6 +3,7 @@ import { lookupProfile, config as bskConfig } from 'blockstack'
 import logger from 'winston'
 import { Collection } from 'mongodb'
 import fs from 'fs'
+import path from 'path'
 
 type IndexEntry = { key: string, value: Object }
 
@@ -119,17 +120,34 @@ function fetchNames(names: Array<string>) : Promise<Array<?IndexEntry>> {
       })))
 }
 
+function ensureExists(filename) {
+  if (fs.existsSync(filename)) {
+    try {
+      fs.accessSync(filename, fs.constants.W_OK)
+    } catch (err) {
+      throw new Error(`Cannot write to path: ${filename}`)
+    }
+  }
+  const dirname = path.dirname(filename)
+  if (fs.existsSync(dirname)) {
+    try {
+      fs.accessSync(dirname, fs.constants.W_OK)
+    } catch (err) {
+      throw new Error(`Cannot write to path: ${dirname}`)
+    }
+  } else {
+    ensureExists(dirname)
+    fs.mkdirSync(dirname)
+  }
+}
+
 export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promise<void> {
   const profileEntries = []
   let allNames
   let errorCount = 0
 
-  try {
-    fs.accessSync(profilesFile, fs.constants.W_OK)
-    fs.accessSync(namesFile, fs.constants.W_OK)
-  } catch (err) {
-    throw new Error('no access to the needed files.')
-  }
+  ensureExists(profilesFile)
+  ensureExists(namesFile)
 
   return Promise.all([getAllNames(), getAllSubdomains()])
     .then(([allDomains, allSubdomains]) => {
