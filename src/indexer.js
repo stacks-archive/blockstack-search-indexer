@@ -68,7 +68,7 @@ function cleanEntry(entry: Object): Object {
         cleanEntry(value)
       }
       if (key.includes('.')) {
-        const newKey = key.replace('.', '_')
+        const newKey = key.replace(/\./g, '_')
         entry[newKey] = value
         delete entry[key]
         key = newKey
@@ -210,7 +210,7 @@ export function processAllNames(namespaceCollection: Collection,
       const { names, profiles } = results
       // fetch_profile_data_from_file in old python version
       return Promise.all(profiles.map(entry => profileCollection.save({ key: entry.fqu,
-                                                                        value: entry.profile })))
+                                                                        value: cleanEntry(entry.profile)})))
       // fetch_namespace_from_file in old python version
         .then(() => Promise.all(profiles.map(entry => {
           try {
@@ -220,7 +220,7 @@ export function processAllNames(namespaceCollection: Collection,
             }
             const newEntry = { username,
                                fqu: entry.fqu,
-                               profile: entry.profile }
+                               profile: cleanEntry(entry.profile) }
             return namespaceCollection.save(newEntry)
           } catch (err) {
             logger.warn(`Error processing ${entry.key}`)

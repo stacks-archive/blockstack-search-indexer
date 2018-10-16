@@ -42,11 +42,12 @@ function runSearchIndex(config) {
         .then(() => createSearchIndex(namespaceCollection, searchProfiles,
                                       peopleCache, twitterCache, usernameCache))
         .then(() => logger.info('Finished Indexing!'))
-        .then(() => Promise.all([searchDB.admin().command('copydb', { fromdb: 'search_db', todb: 'search_db_prior' }),
-                                 searchCache.admin().command('copydb', { fromdb: 'search_cache', todb: 'search_cache_prior' })]))
-        .then(() => Promise.all([searchDB.dropDatabase(), searchCache.dropDatabase()]))
-        .then(() => Promise.all([searchDB.admin().command('copydb', { fromdb: 'search_db_next', todb: 'search_db' }),
-                                 searchCache.admin().command('copydb', { fromdb: 'search_cache_next', todb: 'search_cache' })]))
+        .then(() => Promise.all([client.db('search_db_prior').dropDatabase(), client.db('search_cache_prior').dropDatabase()]))
+        .then(() => Promise.all([searchDB.admin().command({ copydb: 1, fromdb: 'search_db', todb: 'search_db_prior' }),
+                                 searchCache.admin().command({ copydb: 1, fromdb: 'search_cache', todb: 'search_cache_prior' })]))
+        .then(() => Promise.all([client.db('search_db').dropDatabase(), client.db('search_cache').dropDatabase()]))
+        .then(() => Promise.all([searchDB.admin().command({copydb: 1, fromdb: 'search_db_next', todb: 'search_db' }),
+                                 searchCache.admin().command({ copydb: 1, fromdb: 'search_cache_next', todb: 'search_cache' })]))
         .then(() => client.close())
     })
 }
