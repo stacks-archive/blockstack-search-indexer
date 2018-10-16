@@ -20,8 +20,15 @@ function getMongoClient(config) {
 function runSearchIndex(config) {
   return getMongoClient(config)
     .then(client => {
-      const searchDB = client.db('search_db_two')
-      const searchCache = client.db('search_cache_two')
+      const searchDB = client.db('search_db_next')
+      const searchCache = client.db('search_cache_next')
+      return Promise.all([searchDB.dropDatabase(),
+                          searchCache.dropDatabase()])
+        .then(() => client)
+    })
+    .then(client => {
+      const searchDB = client.db('search_db_next')
+      const searchCache = client.db('search_cache_next')
       const namespaceCollection = searchDB.collection('namespace')
       const profileCollection = searchDB.collection('profile_data')
       /* these need to be updated... */
@@ -29,10 +36,17 @@ function runSearchIndex(config) {
       const peopleCache = searchCache.collection('people_cache')
       const twitterCache = searchCache.collection('twitter_cache')
       const usernameCache = searchCache.collection('username_cache')
-      return processAllNames(namespaceCollection, profileCollection)
+      return processAllNames(namespaceCollection, profileCollection,
+                             { useFiles: { namespace: '/var/blockstack-search/blockchain_data.json',
+                                           profiles: '/var/blockstack-search/profile_data.json' } })
         .then(() => createSearchIndex(namespaceCollection, searchProfiles,
                                       peopleCache, twitterCache, usernameCache))
         .then(() => logger.info('Finished Indexing!'))
+        .then(() => Promise.all([searchDB.admin().command('copydb', { fromdb: 'search_db', todb: 'search_db_prior' }),
+                                 searchCache.admin().command('copydb', { fromdb: 'search_cache', todb: 'search_cache_prior' })]))
+        .then(() => Promise.all([searchDB.dropDatabase(), searchCache.dropDatabase()]))
+        .then(() => Promise.all([searchDB.admin().command('copydb', { fromdb: 'search_db_next', todb: 'search_db' }),
+                                 searchCache.admin().command('copydb', { fromdb: 'search_cache_next', todb: 'search_cache' })]))
         .then(() => client.close())
     })
 }
