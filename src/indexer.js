@@ -7,9 +7,13 @@ import path from 'path'
 
 type IndexEntry = { key: string, value: Object }
 
-function _getAllNames(page: number, priorNames: Array<string>): Promise<Array<string>> {
+function _getAllNames(page: number, priorNames: Array<string>, pagesToFetch: number): Promise<Array<string>> {
   const blockstackAPIUrl = bskConfig.network.blockstackAPIUrl
   const fetchUrl = `${blockstackAPIUrl}/v1/names?page=${page}`
+
+  if (pagesToFetch && pagesToFetch > 0 && page >= pagesToFetch) {
+    return priorNames
+  }
 
   if (page % 20 === 0) {
     logger.info(`Fetched ${page} domain pages...`)
@@ -21,16 +25,20 @@ function _getAllNames(page: number, priorNames: Array<string>): Promise<Array<st
       logger.debug('Fetched name page')
       if (names.length > 0) {
         names.forEach(x => priorNames.push(x))
-        return _getAllNames(page + 1, priorNames)
+        return _getAllNames(page + 1, priorNames, pagesToFetch)
       } else {
         return priorNames
       }
     })
 }
 
-function _getAllSubdomains(page: number, priorNames: Array<string>): Promise<Array<string>> {
+function _getAllSubdomains(page: number, priorNames: Array<string>, pagesToFetch: number): Promise<Array<string>> {
   const blockstackAPIUrl = bskConfig.network.blockstackAPIUrl
   const fetchUrl = `${blockstackAPIUrl}/v1/subdomains?page=${page}`
+
+  if (pagesToFetch && pagesToFetch > 0 && page >= pagesToFetch) {
+    return priorNames
+  }
 
   if (page % 20 === 0) {
     logger.info(`Fetched ${page} subdomain pages...`)
@@ -42,19 +50,19 @@ function _getAllSubdomains(page: number, priorNames: Array<string>): Promise<Arr
       logger.debug('Fetched subdomain page')
       if (names.length > 0) {
         names.forEach(x => priorNames.push(x))
-        return _getAllSubdomains(page + 1, priorNames)
+        return _getAllSubdomains(page + 1, priorNames, pagesToFetch)
       } else {
         return priorNames
       }
     })
 }
 
-function getAllNames(): Promise<Array<string>> {
-  return _getAllNames(0, [])
+function getAllNames(pagesToFetch: number): Promise<Array<string>> {
+  return _getAllNames(0, [], pagesToFetch)
 }
 
-function getAllSubdomains(): Promise<Array<string>> {
-  return _getAllSubdomains(0, [])
+function getAllSubdomains(pagesToFetch: number): Promise<Array<string>> {
+  return _getAllSubdomains(0, [], pagesToFetch)
 }
 
 function cleanEntry(entry: Object): Object {
@@ -141,12 +149,14 @@ function ensureExists(filename) {
   }
 }
 
-function _fetchAllNames(): Promise<{ names: [string], profiles: [{ profile: Object, fqu: string }] }> {
+function _fetchAllNames(pagesToFetch: number):
+  Promise<{ names: [string], profiles: [{ profile: Object, fqu: string }] }>
+{
   const profiles = []
   const names = []
   let errorCount = 0
 
-  return Promise.all([getAllNames(), getAllSubdomains()])
+  return Promise.all([getAllNames(pagesToFetch), getAllSubdomains(pagesToFetch)])
     .then(([allDomains, allSubdomains]) => {
       const totalLength = allDomains.length + allSubdomains.length
       logger.info(`Fetching ${totalLength} entries`)
@@ -183,12 +193,12 @@ function _fetchAllNames(): Promise<{ names: [string], profiles: [{ profile: Obje
     .then(() => ({ names, profiles }))
 }
 
-export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promise<void> {
+export function dumpAllNamesFile(profilesFile: string, namesFile: string, options: any = {}): Promise<void> {
 
   ensureExists(profilesFile)
   ensureExists(namesFile)
 
-  return _fetchAllNames()
+  return _fetchAllNames(options.pagesToFetch)
     .then((result) => {
       fs.writeFileSync(profilesFile, JSON.stringify(result.profiles, null, 2))
       fs.writeFileSync(namesFile, JSON.stringify(result.names, null, 2))
@@ -197,13 +207,13 @@ export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promi
 
 export function processAllNames(namespaceCollection: Collection,
                                 profileCollection: Collection,
-                                options: any): Promise<void>
+                                options: any = {}): Promise<void>
 {
   const fetchingPromise = options.useFiles ?
         Promise.resolve(
           { names: JSON.parse(fs.readFileSync(options.useFiles.namespace)),
             profiles: JSON.parse(fs.readFileSync(options.useFiles.profiles)) })
-        : _fetchAllNames()
+        : _fetchAllNames(options.pagesToFetch)
 
   return fetchingPromise
     .then((results) => {
