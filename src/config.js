@@ -1,4 +1,4 @@
-import { config as bskConfig,  } from 'blockstack'
+import { config as bskConfig  } from 'blockstack'
 import winston from 'winston'
 import fs from 'fs'
 import http from 'http'
@@ -25,7 +25,7 @@ const configDefaults = {
 
 
 export function getConfig() {
-  let config = Object.assign({}, configDefaults)
+  const config = Object.assign({}, configDefaults)
   if (process.env.BSK_SEARCH_CONFIG) {
     const configFile = process.env.BSK_SEARCH_CONFIG
     Object.assign(config, JSON.parse(fs.readFileSync(configFile)))

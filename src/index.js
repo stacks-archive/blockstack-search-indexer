@@ -9,10 +9,6 @@ import { getConfig } from './config'
 
 import minimist from 'minimist'
 
-function sleep(time) {
-  return new Promise((resolve) => setTimeout(resolve, time))
-}
-
 function getMongoClient(config) {
   return MongoClient.connect(config.mongoConnection)
 }

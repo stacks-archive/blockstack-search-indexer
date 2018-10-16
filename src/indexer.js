@@ -1,4 +1,6 @@
 /* @flow */
+import 'cross-fetch/polyfill'
+
 import { lookupProfile, config as bskConfig } from 'blockstack'
 import logger from 'winston'
 import { Collection } from 'mongodb'
@@ -150,8 +152,7 @@ function ensureExists(filename) {
 }
 
 function _fetchAllNames(pagesToFetch: number):
-  Promise<{ names: [string], profiles: [{ profile: Object, fqu: string }] }>
-{
+  Promise<{ names: [string], profiles: [{ profile: Object, fqu: string }] }> {
   const profiles = []
   const names = []
   let errorCount = 0
@@ -207,8 +208,7 @@ export function dumpAllNamesFile(profilesFile: string, namesFile: string, option
 
 export function processAllNames(namespaceCollection: Collection,
                                 profileCollection: Collection,
-                                options: any = {}): Promise<void>
-{
+                                options: any = {}): Promise<void> {
   const fetchingPromise = options.useFiles ?
         Promise.resolve(
           { names: JSON.parse(fs.readFileSync(options.useFiles.namespace)),
@@ -217,7 +217,7 @@ export function processAllNames(namespaceCollection: Collection,
 
   return fetchingPromise
     .then((results) => {
-      const { names, profiles } = results
+      const { profiles } = results
       // fetch_profile_data_from_file in old python version
       return Promise.all(profiles.map(entry => profileCollection.save({ key: entry.fqu,
                                                                         value: cleanEntry(entry.profile)})))
@@ -242,8 +242,7 @@ export function processAllNames(namespaceCollection: Collection,
 
 export function createSearchIndex(namespaceCollection: Collection, searchProfiles: Collection,
                                   peopleCache: Collection, twitterCache: Collection,
-                                  usernameCache: Collection): Promise<void>
-{
+                                  usernameCache: Collection): Promise<void> {
   const cursor = namespaceCollection.find()
   const peopleNames = []
   const twitterHandles = []
@@ -284,7 +283,7 @@ export function createSearchIndex(namespaceCollection: Collection, searchProfile
         }
 
         const entry = { name, profile, openbazaar,
-                        twitter_handle: twitterHandle,
+                        'twitter_handle': twitterHandle,
                         username: user.username,
                         fullyQualifiedName: user.fqu }
         searchProfiles.save(entry)
