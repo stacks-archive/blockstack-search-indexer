@@ -1,6 +1,6 @@
 {
   "name": "blockstack-search-indexer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A profile resolver for Blockstack",
   "main": "lib/index.js",
   "dependencies": {
@@ -37,7 +37,8 @@
     "compile-tests": "npm run lint && npm run flow && npm run build && babel tests/src -d tests/lib",
     "test-inner": "npm run compile-tests && node tests/lib/index.js",
     "test": "nyc --reporter=text npm run test-inner",
-    "fetch-to-json": "npm run build && node lib/index.js fetch-to-json -d"
+    "fetch-to-json": "npm run build && node lib/index.js fetch-to-json -d",
+    "fetch-to-mongo": "npm run build && node lib/index.js index -d"
   },
   "nyc": {
     "include": [
