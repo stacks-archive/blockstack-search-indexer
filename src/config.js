@@ -1,4 +1,4 @@
-import { config as bskConfig } from 'blockstack'
+import { config as bskConfig  } from 'blockstack'
 import winston from 'winston'
 import fs from 'fs'
 import http from 'http'
@@ -19,12 +19,13 @@ const configDefaults = {
   // used if fetching data into json files (legacy support)
   namesFile: '/var/blockstack-search/blockchain_data.json',
   profilesFile: '/var/blockstack-search/profile_data.json',
-  minutesBetweenIndex: 120
+  minutesBetweenIndex: 120,
+  pagesToFetch: -1
 }
 
 
 export function getConfig() {
-  let config = Object.assign({}, configDefaults)
+  const config = Object.assign({}, configDefaults)
   if (process.env.BSK_SEARCH_CONFIG) {
     const configFile = process.env.BSK_SEARCH_CONFIG
     Object.assign(config, JSON.parse(fs.readFileSync(configFile)))
@@ -36,13 +37,16 @@ export function getConfig() {
     config.mongoConnection = process.env.BSK_SEARCH_MONGO_CONNECTION
   }
   if (process.env.BSK_SEARCH_INDEX_EVERY) {
-    config.minutesBetweenIndex = process.env.BSK_SEARCH_INDEX_EVERY
+    config.minutesBetweenIndex = parseFloat(process.env.BSK_SEARCH_INDEX_EVERY)
   }
   if (process.env.BSK_SEARCH_NAMES_FILE) {
     config.namesFile = process.env.BSK_SEARCH_NAMES_FILE
   }
   if (process.env.BSK_SEARCH_PROFILES_FILE) {
     config.profilesFile = process.env.BSK_SEARCH_PROFILES_FILE
+  }
+  if (process.env.BSK_SEARCH_PAGES_TO_FETCH) {
+    config.pagesToFetch = parseInt(process.env.BSK_SEARCH_PAGES_TO_FETCH)
   }
 
   winston.configure({ transports: [
@@ -52,6 +56,7 @@ export function getConfig() {
   http.globalAgent.maxSockets = config.maxSimultaneousFetches
 
   bskConfig.network.blockstackAPIUrl = config.blockstackAPIUrl
+  bskConfig.logLevel = 'none'
 
   return config
 }

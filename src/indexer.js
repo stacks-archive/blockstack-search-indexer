@@ -1,4 +1,6 @@
 /* @flow */
+import 'cross-fetch/polyfill'
+
 import { lookupProfile, config as bskConfig } from 'blockstack'
 import logger from 'winston'
 import { Collection } from 'mongodb'
@@ -7,9 +9,13 @@ import path from 'path'
 
 type IndexEntry = { key: string, value: Object }
 
-function _getAllNames(page: number, priorNames: Array<string>): Promise<Array<string>> {
+function _getAllNames(page: number, priorNames: Array<string>, pagesToFetch: number): Promise<Array<string>> {
   const blockstackAPIUrl = bskConfig.network.blockstackAPIUrl
   const fetchUrl = `${blockstackAPIUrl}/v1/names?page=${page}`
+
+  if (pagesToFetch && pagesToFetch > 0 && page >= pagesToFetch) {
+    return priorNames
+  }
 
   if (page % 20 === 0) {
     logger.info(`Fetched ${page} domain pages...`)
@@ -21,16 +27,20 @@ function _getAllNames(page: number, priorNames: Array<string>): Promise<Array<st
       logger.debug('Fetched name page')
       if (names.length > 0) {
         names.forEach(x => priorNames.push(x))
-        return _getAllNames(page + 1, priorNames)
+        return _getAllNames(page + 1, priorNames, pagesToFetch)
       } else {
         return priorNames
       }
     })
 }
 
-function _getAllSubdomains(page: number, priorNames: Array<string>): Promise<Array<string>> {
+function _getAllSubdomains(page: number, priorNames: Array<string>, pagesToFetch: number): Promise<Array<string>> {
   const blockstackAPIUrl = bskConfig.network.blockstackAPIUrl
   const fetchUrl = `${blockstackAPIUrl}/v1/subdomains?page=${page}`
+
+  if (pagesToFetch && pagesToFetch > 0 && page >= pagesToFetch) {
+    return priorNames
+  }
 
   if (page % 20 === 0) {
     logger.info(`Fetched ${page} subdomain pages...`)
@@ -42,19 +52,19 @@ function _getAllSubdomains(page: number, priorNames: Array<string>): Promise<Arr
       logger.debug('Fetched subdomain page')
       if (names.length > 0) {
         names.forEach(x => priorNames.push(x))
-        return _getAllSubdomains(page + 1, priorNames)
+        return _getAllSubdomains(page + 1, priorNames, pagesToFetch)
       } else {
         return priorNames
       }
     })
 }
 
-function getAllNames(): Promise<Array<string>> {
-  return _getAllNames(0, [])
+function getAllNames(pagesToFetch: number): Promise<Array<string>> {
+  return _getAllNames(0, [], pagesToFetch)
 }
 
-function getAllSubdomains(): Promise<Array<string>> {
-  return _getAllSubdomains(0, [])
+function getAllSubdomains(pagesToFetch: number): Promise<Array<string>> {
+  return _getAllSubdomains(0, [], pagesToFetch)
 }
 
 function cleanEntry(entry: Object): Object {
@@ -68,7 +78,7 @@ function cleanEntry(entry: Object): Object {
         cleanEntry(value)
       }
       if (key.includes('.')) {
-        const newKey = key.replace('.', '_')
+        const newKey = key.replace(/\./g, '_')
         entry[newKey] = value
         delete entry[key]
         key = newKey
@@ -141,21 +151,19 @@ function ensureExists(filename) {
   }
 }
 
-export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promise<void> {
-  const profileEntries = []
-  let allNames
+function _fetchAllNames(pagesToFetch: number):
+  Promise<{ names: [string], profiles: [{ profile: Object, fqu: string }] }> {
+  const profiles = []
+  const names = []
   let errorCount = 0
 
-  ensureExists(profilesFile)
-  ensureExists(namesFile)
-
-  return Promise.all([getAllNames(), getAllSubdomains()])
+  return Promise.all([getAllNames(pagesToFetch), getAllSubdomains(pagesToFetch)])
     .then(([allDomains, allSubdomains]) => {
       const totalLength = allDomains.length + allSubdomains.length
       logger.info(`Fetching ${totalLength} entries`)
-      allNames = allDomains
-      allSubdomains.forEach( x => allNames.push(x) )
-      return allNames
+      allDomains.forEach( x => names.push(x) )
+      allSubdomains.forEach( x => names.push(x) )
+      return names
     })
     .then(names => batchify(names, 50))
     .then(batches => {
@@ -165,8 +173,8 @@ export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promi
           .then(results => {
             results.forEach( result => {
               if (result) {
-                profileEntries.push({ profile: result.value,
-                                      fqu: result.key })
+                profiles.push({ profile: result.value,
+                                fqu: result.key })
               } else {
                 errorCount += 1
               }
@@ -181,44 +189,55 @@ export function dumpAllNamesFile(profilesFile: string, namesFile: string): Promi
     })
     .then(() => {
       logger.info(`Total errored lookups: ${errorCount}`)
-      logger.info('Finished batching. Writing files...')
-      fs.writeFileSync(profilesFile, JSON.stringify(profileEntries, null, 2))
-      fs.writeFileSync(namesFile, JSON.stringify(allNames, null, 2))
+      logger.info('Finished batching. Writing...')
+    })
+    .then(() => ({ names, profiles }))
+}
+
+export function dumpAllNamesFile(profilesFile: string, namesFile: string, options: any = {}): Promise<void> {
+
+  ensureExists(profilesFile)
+  ensureExists(namesFile)
+
+  return _fetchAllNames(options.pagesToFetch)
+    .then((result) => {
+      fs.writeFileSync(profilesFile, JSON.stringify(result.profiles, null, 2))
+      fs.writeFileSync(namesFile, JSON.stringify(result.names, null, 2))
     })
 }
 
 export function processAllNames(namespaceCollection: Collection,
-                                profileCollection: Collection): Promise<void> {
-  let indexEntries
-  let allNames
-  return Promise.all([getAllNames(), getAllSubdomains()])
-    .then(([allDomains, allSubdomains]) => {
-      const totalLength = allDomains.length + allSubdomains.length
-      logger.info(`Fetching ${totalLength} entries`)
-      allNames = allDomains
-      allSubdomains.forEach( x => allNames.push(x) )
-      return allNames
+                                profileCollection: Collection,
+                                options: any = {}): Promise<void> {
+  const fetchingPromise = options.useFiles ?
+        Promise.resolve(
+          { names: JSON.parse(fs.readFileSync(options.useFiles.namespace)),
+            profiles: JSON.parse(fs.readFileSync(options.useFiles.profiles)) })
+        : _fetchAllNames(options.pagesToFetch)
+
+  return fetchingPromise
+    .then((results) => {
+      const { profiles } = results
+      // fetch_profile_data_from_file in old python version
+      return Promise.all(profiles.map(entry => profileCollection.save({ key: entry.fqu,
+                                                                        value: cleanEntry(entry.profile)})))
+      // fetch_namespace_from_file in old python version
+        .then(() => Promise.all(profiles.map(entry => {
+          try {
+            let username = entry.fqu
+            if (username.endsWith('.id')) {
+              username = username.slice(0, -3)
+            }
+            const newEntry = { username,
+                               fqu: entry.fqu,
+                               profile: cleanEntry(entry.profile) }
+            return namespaceCollection.save(newEntry)
+          } catch (err) {
+            logger.warn(`Error processing ${entry.key}`)
+            logger.warn(err)
+          }
+        })))
     })
-    .then(names => fetchNames(allNames))
-    .then(results => {
-      results.forEach( result => {
-        if (result) {
-          indexEntries.push(result)
-        }
-      } )
-    })
-    .then(() => Promise.all(indexEntries.map(entry => profileCollection.save(entry))))
-    .then(() => Promise.all(indexEntries.map(
-      entry => {
-        let username = entry.key
-        if (username.endsWith('.id')) {
-          username = username.slice(0, -3)
-        }
-        const newEntry = { username,
-                           profile: entry.value }
-        return namespaceCollection.save(newEntry)
-      })))
-    .then(() => {})
 }
 
 export function createSearchIndex(namespaceCollection: Collection, searchProfiles: Collection,
@@ -228,25 +247,26 @@ export function createSearchIndex(namespaceCollection: Collection, searchProfile
   const peopleNames = []
   const twitterHandles = []
   const usernames = []
-  return new Promise((resolve, reject) => {
-    cursor.forEach(
-      (user) => {
+  const errors = []
+  return cursor.forEach(
+    (user) => {
+      try {
         let openbazaar = null
         let name = null
         let twitterHandle = null
-        let profile = user.profile
-        if (profile.hasOwnProperty('account')) {
+        const profile = user.profile
+        if (profile.account) {
           profile.account.forEach((account) => {
             if (account.service === 'openbazaar') {
               openbazaar = account.identifier
             } else if (account.service === 'twitter') {
-              twitterHandle = account.identifier
+                twitterHandle = account.identifier
             }
           })
         }
-        if (profile.hasOwnProperty('name')) {
+        if (profile.name) {
           name = profile.name
-          if (name.hasOwnProperty('formatted')) {
+          if (name.formatted) {
             name = name.formatted
           }
           name = name.toLocaleLowerCase()
@@ -258,24 +278,21 @@ export function createSearchIndex(namespaceCollection: Collection, searchProfile
         if (twitterHandle) {
           twitterHandles.push(twitterHandle)
         }
-        if (user.username) {
-          usernames.push(user.username)
+        if (user.fqu) {
+          usernames.push(user.fqu)
         }
 
         const entry = { name, profile, openbazaar,
-                        twitter_handle: twitterHandle,
-                        username: user.username }
+                        'twitter_handle': twitterHandle,
+                        username: user.username,
+                        fullyQualifiedName: user.fqu }
         searchProfiles.save(entry)
-      },
-      (err) => {
-        if (err) {
-          reject(err)
-        } else {
-          resolve(err)
-        }
-      })
-  })
+      } catch (err) {
+        errors.push(user.fqu)
+      }
+    })
     .then(() => {
+      logger.warn(`Errors on names: ${JSON.stringify(errors)}`)
       const peopleNamesSet = new Set(peopleNames)
       const twitterHandlesSet = new Set(twitterHandles)
       const usernamesSet = new Set(usernames)
@@ -285,5 +302,9 @@ export function createSearchIndex(namespaceCollection: Collection, searchProfile
       return peopleCache.save(peopleNamesEntry)
         .then(() => twitterCache.save(twitterHandlesEntry))
         .then(() => usernameCache.save(usernamesEntry))
+    })
+    .then(() => {
+      // optimize_db()
+      peopleCache.ensureIndex({'name': 1})
     })
 }

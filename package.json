@@ -1,26 +1,28 @@
 {
   "name": "blockstack-search-indexer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A profile resolver for Blockstack",
   "main": "lib/index.js",
   "dependencies": {
-    "blockstack": "^0.17.0",
+    "blockstack": "^18.0.4",
     "cors": "^2.8.4",
+    "cross-fetch": "^2.2.2",
     "express": "^4.16.2",
-    "mongodb": "^3.0.7",
+    "mongodb": "^3.1.8",
     "node-fetch": "^2.0.0",
     "winston": "^2.4.0"
   },
   "devDependencies": {
     "babel-cli": "^6.0.0",
-    "babel-eslint": "^6.0.4",
+    "babel-eslint": "^10.0.1",
     "babel-preset-env": "^1.6.1",
     "babel-preset-flow": "^6.23.0",
-    "eslint": "^2.10.2",
+    "eslint": "^5.7.0",
+    "eslint-plugin-flowtype": "^3.0.0",
     "eslint-plugin-import": "^1.8.1",
     "flow-bin": "^0.49.1",
     "nock": "^9.1.6",
-    "nyc": "^11.4.1",
+    "nyc": "^13.1.0",
     "tape": "^4.6.3",
     "tape-istanbul": "^1.2.0"
   },
@@ -35,7 +37,8 @@
     "compile-tests": "npm run lint && npm run flow && npm run build && babel tests/src -d tests/lib",
     "test-inner": "npm run compile-tests && node tests/lib/index.js",
     "test": "nyc --reporter=text npm run test-inner",
-    "fetch-to-json": "npm run build && node lib/index.js fetch-to-json -d"
+    "fetch-to-json": "npm run build && node lib/index.js fetch-to-json -d",
+    "fetch-to-mongo": "npm run build && node lib/index.js index -d"
   },
   "nyc": {
     "include": [
