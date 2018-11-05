@@ -33,6 +33,29 @@ option:
 node lib/index.js index
 ```
 
+# Running with a local Blockstack node
+
+We recommend point the search service at your own Blockstack node -- that
+way you can be sure that you aren't relying on someone else's service (and
+trusting their responses!)
+
+You can find documentation on running a core
+node [here](https://github.com/blockstack/blockstack-core#installing-blockstack-core),
+but a few simple docker commands can get you started.
+
+Starting your node:
+```
+$ docker run -it -p 127.0.0.1:6270:6270 -v /home/<user>/blockstack-core:/root/.blockstack quay.io/blockstack/blockstack-core:master
+```
+
+Notice, that command mounts a folder on the host machine to store blockstack-core
+data. The first time you run that command, your node will synchronize from a snapshot
+and fill that folder with data. On subsequent runs, your node will simply boot from
+the data in that folder, and download any updates since the last time it started.
+
+Once the node finishes synchronizing (you'll see ` End indexing ` in the docker container's log),
+you can run your search service, pointed at `http://localhost:6270`
+
 ### Configuration
 
 The following environment variables will control the operation of
