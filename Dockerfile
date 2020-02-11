@@ -1,4 +1,4 @@
-FROM node:8
+FROM node:12
 
 WORKDIR /src/subdomain-registrar
 # Copy files into container

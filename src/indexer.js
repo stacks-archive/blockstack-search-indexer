@@ -92,42 +92,71 @@ function cleanEntry(entry: Object): Object {
   return entry
 }
 
-function batchify<T>(input: Array<T>, batchSize: number = 50): Array<Array<T>> {
-  const output = []
-  let currentBatch = []
-  for (let i = 0; i < input.length; i++) {
-    currentBatch.push(input[i])
-    if (currentBatch.length >= batchSize) {
-      output.push(currentBatch)
-      currentBatch = []
-    }
-  }
-  if (currentBatch.length > 0) {
-    output.push(currentBatch)
-  }
-  return output
+function promiseTimer(timeout: number): Promise<Void> {
+  return new Promise((resolve, reject) =>
+                     setTimeout(() => resolve(), timeout))
 }
 
-function lookupProfileWithTimeout(name: string, timeoutSecs: number): Promise<Object> {
-  return Promise.race([
+async function lookupProfileWithTimeout(name: string, timeoutSecs: number): Promise<Object> {
+  let result = await Promise.race([
     new Promise((resolve, reject) =>
                 setTimeout(() => reject(new Error('lookupProfile timed out')),
                            timeoutSecs*1000)),
     lookupProfile(name)])
+  return result
 }
 
-function fetchNames(names: Array<string>) : Promise<Array<?IndexEntry>> {
-  return Promise.all(names.map(
-    name =>
-      lookupProfileWithTimeout(name, 30)
-      .then(profile =>
-            ({ key: name,
-               value: cleanEntry(Object.assign({}, profile)) }))
-      .catch((err) => {
-        logger.debug(`Failed looking up profile for ${name}`)
-        logger.debug(err)
-        return null
-      })))
+async function fetchName(name: string) : Promise<?IndexEntry> {
+    try {
+      let profile = await lookupProfileWithTimeout(name, 30)
+      let result = { key: name,
+                     value: cleanEntry(Object.assign({}, profile)) }
+      return result
+    } catch (err) {
+      logger.debug(`Failed looking up profile for ${name}`)
+      logger.debug(err)
+      return null
+    }
+}
+
+async function fetchNames(names: Array<string>, batchSize) : Promise<Array<?IndexEntry>> {
+  let batch = []
+  let profiles = []
+  let errorCount = 0
+  let ix = 0
+  for (const name of names) {
+    if (batch.length >= batchSize) {
+      let results = await Promise.all(batch.map(fetchName));
+      results.forEach(result => {
+        if (result) {
+          profiles.push({ profile: result.value,
+                          fqu: result.key })
+        } else {
+          errorCount += 1
+        }
+      })
+      logger.info(`Fetched ${ix} entries`)
+      let timeout = process.env.BSK_SEARCH_WAIT_BETWEEN_QUERIES || 0
+      await promiseTimer(timeout)
+
+      batch = []
+    }
+    ix += 1;
+    batch.push(name)
+  }
+  if (batch.length > 0) {
+    let results = await Promise.all(batch.map(fetchName));
+    results.forEach(result => {
+      if (result) {
+        profiles.push({ profile: result.value,
+                        fqu: result.key })
+      } else {
+        errorCount += 1
+      }
+    })
+  }
+
+  return [profiles, errorCount]
 }
 
 function ensureExists(filename) {
@@ -165,33 +194,12 @@ function _fetchAllNames(pagesToFetch: number):
       allSubdomains.forEach( x => names.push(x) )
       return names
     })
-    .then(names => batchify(names, 50))
-    .then(batches => {
-      let promiseIterate = Promise.resolve([])
-      batches.forEach((batch, batchIx) => {
-        promiseIterate = promiseIterate
-          .then(results => {
-            results.forEach( result => {
-              if (result) {
-                profiles.push({ profile: result.value,
-                                fqu: result.key })
-              } else {
-                errorCount += 1
-              }
-            } )
-            if (batchIx % 10 === 0) {
-              logger.info(`Fetched ${batchIx} batches of 50`)
-            }
-          })
-          .then(() => fetchNames(batch))
-      })
-      return promiseIterate
-    })
-    .then(() => {
+    .then(names => fetchNames(names, 5))
+    .then(([profiles, errorCount]) => {
       logger.info(`Total errored lookups: ${errorCount}`)
       logger.info('Finished batching. Writing...')
+      return { names, profiles }
     })
-    .then(() => ({ names, profiles }))
 }
 
 export function dumpAllNamesFile(profilesFile: string, namesFile: string, options: any = {}): Promise<void> {

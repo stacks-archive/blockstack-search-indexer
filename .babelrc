@@ -1,3 +1,5 @@
 {
-  "presets": ["flow", "env"]
+  "presets": ["@babel/preset-flow", [
+    "@babel/preset-env", {
+  "targets": { "node": "12" }}]]
 }

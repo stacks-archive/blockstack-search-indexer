@@ -56,7 +56,7 @@ export function getConfig() {
   http.globalAgent.maxSockets = config.maxSimultaneousFetches
 
   bskConfig.network.blockstackAPIUrl = config.blockstackAPIUrl
-  bskConfig.logLevel = 'none'
+  bskConfig.logLevel = 'debug'
 
   return config
 }

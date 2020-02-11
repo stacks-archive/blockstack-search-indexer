@@ -1,6 +1,6 @@
 {
   "name": "blockstack-search-indexer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A profile resolver for Blockstack",
   "main": "lib/index.js",
   "dependencies": {
@@ -13,7 +13,7 @@
     "@babel/cli": "^7.0.0",
     "@babel/core": "^7.0.0",
     "@babel/preset-env": "^7.8.4",
-    "@babel/preset-flow": "^7.8.3",
+    "@babel/flow": "^7.8.3",
     "babel-eslint": "^10.0.1",
     "eslint": "^5.7.0",
     "eslint-plugin-flowtype": "^3.0.0",
