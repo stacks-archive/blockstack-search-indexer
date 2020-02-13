@@ -6,4 +6,4 @@ COPY . .
 
 RUN npm i
 
-CMD npm run fetch-to-json
+CMD npm run start fetch-to-json

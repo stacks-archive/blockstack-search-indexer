@@ -9,6 +9,9 @@ import path from 'path'
 
 type IndexEntry = { key: string, value: Object }
 
+const BATCH_DELAY = process.env.BSK_SEARCH_WAIT_BETWEEN_QUERIES || 0;
+const BATCH_SIZE  = process.env.BSK_SEARCH_BATCH_SIZE || 5;
+
 function _getAllNames(page: number, priorNames: Array<string>, pagesToFetch: number): Promise<Array<string>> {
   const blockstackAPIUrl = bskConfig.network.blockstackAPIUrl
   const fetchUrl = `${blockstackAPIUrl}/v1/names?page=${page}`
@@ -136,7 +139,7 @@ async function fetchNames(names: Array<string>, batchSize) : Promise<Array<?Inde
         }
       })
       logger.info(`Fetched ${ix} entries`)
-      let timeout = process.env.BSK_SEARCH_WAIT_BETWEEN_QUERIES || 0
+      let timeout = BATCH_DELAY
       await promiseTimer(timeout)
 
       batch = []
@@ -194,7 +197,7 @@ function _fetchAllNames(pagesToFetch: number):
       allSubdomains.forEach( x => names.push(x) )
       return names
     })
-    .then(names => fetchNames(names, 5))
+    .then(names => fetchNames(names, BATCH_SIZE))
     .then(([profiles, errorCount]) => {
       logger.info(`Total errored lookups: ${errorCount}`)
       logger.info('Finished batching. Writing...')
