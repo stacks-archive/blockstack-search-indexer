@@ -17,7 +17,7 @@ expected by blockstack-core/api's [basic_index.py](https://github.com/blockstack
 To run the indexer in a one-off indexing operation with JSON dumps:
 
 ```bash
-$ npm run build && node lib/index.js fetch-to-json
+npm run build && node lib/index.js fetch-to-json
 ```
 
 Logging information is outputted to stderr/stdoutr, so I recommend
@@ -45,7 +45,7 @@ but a few simple docker commands can get you started.
 
 Starting your node:
 ```
-$ docker run -it -p 127.0.0.1:6270:6270 -v /home/<user>/blockstack-core:/root/.blockstack quay.io/blockstack/blockstack-core:master
+docker run -it -p 127.0.0.1:6270:6270 -v /home/<user>/blockstack-core:/root/.blockstack quay.io/blockstack/blockstack-core:master
 ```
 
 Notice, that command mounts a folder on the host machine to store blockstack-core
